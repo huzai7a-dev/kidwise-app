@@ -1,28 +1,37 @@
-import React, { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { theme } from '../color';
-import babyImg from '../assets/baby.png';
-import { useNavigation } from '@react-navigation/core';
+import React, { useState } from 'react';
+import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { useNavigation, NavigationProp } from '@react-navigation/core';
+import type { RootStackParamList } from '@src/types/navigation';
+
+import { theme } from '@constants/colors';
+import babyImg from '@assets/baby.png';
+import KWText from '../components/KWText';
 
 const fullDescription = "Kid Wise is an AI-powered learning companion designed to help your child grow through interactive lessons, friendly conversations, and fun educational games. Monitor progress, encourage creativity, and build habits that last a lifetime.";
 
 const DefaultScreen = () => {
-  const nav = useNavigation()
+  const nav = useNavigation<NavigationProp<RootStackParamList>>();
+
+
   const [displayedWords, setDisplayedWords] = useState([]);
   const words = fullDescription.split(' ');
 
-  useEffect(() => {
-    setDisplayedWords([])
-    let index = 0;
-    const interval = setInterval(() => {
-      setDisplayedWords((prev) => [...prev, words[index]]);
-      index++;
-      if (index >= words.length) clearInterval(interval);
-    }, 150);
 
-    return () => clearInterval(interval);
-  }, []);
+  // useEffect(() => {
+  //   setDisplayedWords([])
+  //   let index = 0;
+  //   const interval = setInterval(() => {
+  //     setDisplayedWords((prev) => [...prev, words[index]]);
+  //     index++;
+  //     if (index >= words.length) clearInterval(interval);
+  //   }, 150);
 
+  //   return () => clearInterval(interval);
+  // }, []);
+
+  // useEffect(()=> {
+  //   kwGetUserById()
+  // },[])
   return (
     <View style={style.container}>
       <View style={{ position: 'relative' }}>
@@ -31,13 +40,15 @@ const DefaultScreen = () => {
         <View style={style.dot2}></View>
       </View>
 
-      <Text style={style.heading}>Kid <Text style={{ color: theme.orange }}>Wise</Text></Text>
-      <Text style={style.para}>Smart Learning. Happy Growing.</Text>
+      <KWText variant="heading" style={style.heading}>
+        Kid <KWText color={theme.orange}>Wise</KWText>
+      </KWText>
+      <KWText variant="subtitle" style={style.para}>Smart Learning. Happy Growing.</KWText>
 
-      <Text style={style.description}>{displayedWords.join(' ')}</Text>
+      <KWText variant="body" style={style.description}>{displayedWords.join(' ')}</KWText>
 
       <TouchableOpacity style={style.btn} onPress={()=>nav.navigate("login")}>
-        <Text style={style.btnText}>GET STARTED</Text>
+        <KWText style={style.btnText}>GET STARTED</KWText>
       </TouchableOpacity>
     </View>
   );
@@ -72,20 +83,17 @@ const style = StyleSheet.create({
     borderRadius: 100,
   },
   heading: {
-    fontSize: 32,
     marginTop: 20,
     color: theme?.black,
     fontWeight: '400',
   },
   para: {
-    fontSize: 18,
     marginTop: 10,
     color: theme.gray,
     textAlign: 'center',
     paddingHorizontal: 10,
   },
   description: {
-    fontSize: 16,
     marginTop: 20,
     textAlign: 'left',
     lineHeight: 24,
