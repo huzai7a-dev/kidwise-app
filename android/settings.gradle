@@ -4,3 +4,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autoli
 rootProject.name = 'KidWiseApp'
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
+include ':livekit_react-native'
+include ':livekit_react-native-webrtc'
+project(':livekit_react-native').projectDir = new File(rootProject.projectDir, '../node_modules/@livekit/react-native/android')
+project(':livekit_react-native-webrtc').projectDir = new File(rootProject.projectDir, '../node_modules/@livekit/react-native-webrtc/android')

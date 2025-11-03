@@ -6,6 +6,7 @@ import ChildProfileScreen from "../screens/Onboarding/ChildProfileScreen";
 import Notification from "@src/screens/Notification";
 import Profile from "@src/screens/Profile";
 import Stories from "@src/screens/Stories";
+import AvatarScreen from "@src/screens/AvatarScreen";
 
 export const navData = [
     {
@@ -54,6 +55,12 @@ export const navData = [
         id: 7,
         name: "stories",
         component: Stories,
+        isPrivate: true,
+    },
+    {
+        id: 8,
+        name: "avatar",
+        component: AvatarScreen,
         isPrivate: true,
     },
 ]
