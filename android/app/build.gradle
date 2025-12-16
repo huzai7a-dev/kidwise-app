@@ -59,4 +59,7 @@ dependencies {
     }
     implementation project(':livekit_react-native')
     implementation project(':livekit_react-native-webrtc')
+
+    implementation project(':react-native-nitro-modules')
+    implementation project(':react-native-nitro-sound')
 }

@@ -8,3 +8,9 @@ include ':livekit_react-native'
 include ':livekit_react-native-webrtc'
 project(':livekit_react-native').projectDir = new File(rootProject.projectDir, '../node_modules/@livekit/react-native/android')
 project(':livekit_react-native-webrtc').projectDir = new File(rootProject.projectDir, '../node_modules/@livekit/react-native-webrtc/android')
+
+include ':react-native-nitro-modules'
+project(':react-native-nitro-modules').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-nitro-modules/android')
+
+include ':react-native-nitro-sound'
+project(':react-native-nitro-sound').projectDir = new File(rootProject.projectDir, '../node_modules/react-native-nitro-sound/android')
