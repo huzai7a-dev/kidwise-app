@@ -24,9 +24,9 @@ const BottomNavBar: React.FC = () => {
 
   const tabs: TabItem[] = [
     { link: 'dashboard', name: 'Home', icon: 'home', type: AntDesignIcon },
-    { link: 'Categories', name: 'Categories', icon: 'grid-view', type: MaterialIcons },
+    // { link: 'Categories', name: 'Categories', icon: 'grid-view', type: MaterialIcons },
     { link: 'avatar', name: 'Add', icon: 'pluscircleo', activeIcon: 'pluscircle', type: AntDesignIcon, size: 30 },
-    { link: 'Calendar', name: 'Calendar', icon: 'calendar', type: FeatherIcon },
+    // { link: 'Calendar', name: 'Calendar', icon: 'calendar', type: FeatherIcon },
     { link: 'profile', name: 'Profile', icon: 'user', type: FeatherIcon },
   ];
 

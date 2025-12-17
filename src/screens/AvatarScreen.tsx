@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,13 +19,21 @@ import {
   AudioSession,
 } from '@livekit/react-native';
 import { Track } from 'livekit-client';
-
-import Sound from 'react-native-nitro-sound';
+import AudioRecorderPlayer, {
+  AVEncoderAudioQualityIOSType,
+  AudioEncoderAndroidType,
+  AudioSourceAndroidType,
+  OutputFormatAndroidType,
+} from 'react-native-audio-recorder-player';
 
 registerGlobals();
 
 const HEYGEN_API_URL = 'https://api.heygen.com/v1';
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:4000';
+
+// VAD Configuration
+const SILENCE_THRESHOLD = -30; // dB threshold (adjust based on testing)
+const SILENCE_DURATION = 1500; // ms of silence before auto-stop
 
 export default function AvatarScreen() {
   const [wsUrl, setWsUrl] = useState('');
@@ -37,14 +45,21 @@ export default function AvatarScreen() {
   const [loading, setLoading] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [recording, setRecording] = useState(false);
-  const [recordTime, setRecordTime] = useState('00:00:00');
+  const [recordTime, setRecordTime] = useState('00:00');
   const [recordLoading, setRecordLoading] = useState(false);
+
+  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoRestartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const audioRecorderPlayer = AudioRecorderPlayer;
 
   // ✅ Start Audio Session
   useEffect(() => {
     AudioSession.startAudioSession().catch(err => console.error(err));
     return () => {
       AudioSession.stopAudioSession().catch(err => console.error(err));
+      // Cleanup timers
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (autoRestartTimeoutRef.current) clearTimeout(autoRestartTimeoutRef.current);
     };
   }, []);
 
@@ -123,9 +138,20 @@ export default function AvatarScreen() {
       });
 
       console.log('HeyGen task response:', await res.json());
+
+      // Estimate speaking duration based on text length (rough heuristic)
+      // Average: ~150 words per minute => ~2.5 words/sec => ~400ms per word
+      const wordCount = payloadText.trim().split(/\s+/).length;
+      const estimatedDuration = Math.max(wordCount * 400, 2000); // min 2 seconds
+
+      // Auto-restart recording after avatar finishes speaking
+      autoRestartTimeoutRef.current = setTimeout(() => {
+        setSpeaking(false);
+        // Auto-start recording again
+        startRecording();
+      }, estimatedDuration);
     } catch (err) {
       console.error('Error sending heygen text:', err);
-    } finally {
       setSpeaking(false);
     }
   };
@@ -151,7 +177,7 @@ export default function AvatarScreen() {
     }
   };
 
-  // Start NitroSound recording
+  // Start recording with VAD
   const startRecording = async () => {
     try {
       // Wait for activity to be ready
@@ -163,16 +189,56 @@ export default function AvatarScreen() {
       if (!ok) return;
 
       setRecordLoading(true);
-      // add listener for progress
-      Sound.addRecordBackListener((e: any) => {
-        setRecordTime(Sound.mmssss(Math.floor(e.currentPosition)));
-      });
-      const uri = await Sound.startRecorder();
-      // uri is the file path where recording will be stored
+
+      const audioSet = {
+        AudioEncoderAndroid: AudioEncoderAndroidType.AAC,
+        AudioSourceAndroid: AudioSourceAndroidType.MIC,
+        AVEncoderAudioQualityKeyIOS: AVEncoderAudioQualityIOSType.high,
+        AVNumberOfChannelsKeyIOS: 1,
+        OutputFormatAndroid: OutputFormatAndroidType.MPEG_4,
+      };
+
+      const uri = await audioRecorderPlayer.startRecorder(
+        undefined,
+        audioSet,
+        true, // meteringEnabled
+      );
+
       console.log('Recorder started, uri:', uri);
+
+      // Set recording state BEFORE adding listener to prevent race condition
       setRecording(true);
+
+      // Add metering listener for VAD
+      audioRecorderPlayer.addRecordBackListener((e: any) => {
+        const currentTime = audioRecorderPlayer.mmss(
+          Math.floor(e.currentPosition / 1000),
+        );
+        setRecordTime(currentTime);
+
+        // Silence detection
+        const currentMetering = e.currentMetering || 0;
+
+        if (currentMetering < SILENCE_THRESHOLD) {
+          // User is silent
+          if (!silenceTimerRef.current) {
+            silenceTimerRef.current = setTimeout(() => {
+              console.log('Silence detected, auto-stopping...');
+              stopRecording();
+            }, SILENCE_DURATION);
+          }
+        } else {
+          // User is speaking, reset silence timer
+          if (silenceTimerRef.current) {
+            clearTimeout(silenceTimerRef.current);
+            silenceTimerRef.current = null;
+          }
+        }
+      });
     } catch (err) {
       console.error('Failed to start recorder', err);
+      // Reset state on error
+      setRecording(false);
     } finally {
       setRecordLoading(false);
     }
@@ -180,12 +246,25 @@ export default function AvatarScreen() {
 
   // Stop recording and send to backend
   const stopRecording = async () => {
+    // Guard: Don't try to stop if not recording
+    if (!recording) {
+      console.log('stopRecording called but not recording, skipping...');
+      return;
+    }
+
     try {
       setRecordLoading(true);
-      const filePath = await Sound.stopRecorder();
-      Sound.removeRecordBackListener();
+
+      // Clear silence timer
+      if (silenceTimerRef.current) {
+        clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = null;
+      }
+
+      const filePath = await audioRecorderPlayer.stopRecorder();
+      audioRecorderPlayer.removeRecordBackListener();
       setRecording(false);
-      setRecordTime('00:00:00');
+      setRecordTime('00:00');
       console.log('Recording stopped, file:', filePath);
 
       // upload file to backend for STT + GPT
@@ -198,7 +277,7 @@ export default function AvatarScreen() {
           : 'audio/m4a';
       // @ts-ignore - FormData in RN accepts this shape
       form.append('audioFile', {
-        uri: filePath,
+        uri: Platform.OS === 'android' ? `file://${filePath}` : filePath,
         name: filename,
         type: fileType,
       });
@@ -223,6 +302,9 @@ export default function AvatarScreen() {
       }
     } catch (err) {
       console.error('Failed to stop/upload recording', err);
+      // Reset state even on error
+      setRecording(false);
+      audioRecorderPlayer.removeRecordBackListener();
     } finally {
       setRecordLoading(false);
     }
@@ -231,6 +313,18 @@ export default function AvatarScreen() {
   const closeSession = async () => {
     try {
       setLoading(true);
+
+      // Cleanup ongoing recording
+      if (recording) {
+        await audioRecorderPlayer.stopRecorder();
+        audioRecorderPlayer.removeRecordBackListener();
+        setRecording(false);
+      }
+
+      // Clear timers
+      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+      if (autoRestartTimeoutRef.current) clearTimeout(autoRestartTimeoutRef.current);
+
       await fetch(`${HEYGEN_API_URL}/streaming.stop`, {
         method: 'POST',
         headers: {
@@ -345,12 +439,12 @@ const RoomView = ({
 
         <View style={styles.controls}>
           <View style={{ flex: 1, justifyContent: 'center' }}>
-            <Text style={{ marginBottom: 6 }}>{recordTime}</Text>
+            <Text style={styles.recordTimeText}>{recordTime}</Text>
             <TouchableOpacity
               style={[
                 styles.recordButton,
                 (recording || recordLoading || loading || speaking) &&
-                  styles.disabledButton,
+                styles.disabledButton,
               ]}
               onPress={recording ? onStopRecording : onStartRecording}
               disabled={recordLoading || loading || speaking}
@@ -359,10 +453,10 @@ const RoomView = ({
                 {recordLoading
                   ? 'Processing...'
                   : speaking
-                  ? 'Speaking...'
-                  : recording
-                  ? 'Stop Recording'
-                  : 'Start Recording'}
+                    ? 'Speaking...'
+                    : recording
+                      ? '🎤 Listening...'
+                      : 'Start Recording'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -401,13 +495,11 @@ const styles = StyleSheet.create({
   },
   closeButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
   controls: { flexDirection: 'row', padding: 20, gap: 10 },
-  input: {
-    flex: 1,
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#333',
-    borderRadius: 25,
-    paddingHorizontal: 15,
+  recordTimeText: {
+    marginBottom: 6,
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
   recordButton: {
     backgroundColor: '#9121f3ff',
