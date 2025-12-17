@@ -31,7 +31,6 @@ registerGlobals();
 const HEYGEN_API_URL = 'https://api.heygen.com/v1';
 const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:4000';
 
-// VAD Configuration
 const SILENCE_THRESHOLD = -30; // dB threshold (adjust based on testing)
 const SILENCE_DURATION = 1500; // ms of silence before auto-stop
 
@@ -182,7 +181,7 @@ export default function AvatarScreen() {
     try {
       // Wait for activity to be ready
       await new Promise(resolve =>
-        InteractionManager.runAfterInteractions(resolve),
+        InteractionManager.runAfterInteractions(() => resolve(undefined)),
       );
 
       const ok = await requestAndroidPermission();
