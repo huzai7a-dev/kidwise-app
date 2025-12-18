@@ -7,6 +7,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 interface HeaderProps {
     childName: string;
+    avatarIndex?:number
     onProfilePress: () => void;
     onNotificationPress: () => void;
 }
@@ -18,22 +19,21 @@ const getGreeting = (): string => {
     return "Good Evening";
 };
 
-const Header: React.FC<HeaderProps> = ({ childName, onProfilePress, onNotificationPress }) => {
+const Header: React.FC<HeaderProps> = ({ childName, onProfilePress, onNotificationPress,avatarIndex=1 }) => {
     const greeting = getGreeting();
 
     return (
         <View style={styles.container}>
             <View style={styles.textContainer}>
-                <KWText style={styles.greetingText}>{greeting},</KWText>
-                <KWText style={styles.childName}>{childName}</KWText>
+                <KWText style={styles.greetingText}>{greeting}, {childName}</KWText>
             </View>
 
             <TouchableOpacity onPress={onProfilePress} style={styles.avatarContainer}>
-                <Image source={AVATARS[1]} style={styles.avatar} />
+                <Image source={AVATARS[avatarIndex as keyof typeof AVATARS]} style={styles.avatar} />
             </TouchableOpacity>
 
             <TouchableOpacity onPress={onNotificationPress} style={styles.iconContainer}>
-                <MaterialCommunityIcons name="bell-outline" size={26} color={theme.purple} />
+                <MaterialCommunityIcons name="bell-outline" size={20} color={theme.white} />
             </TouchableOpacity>
         </View>
     );
@@ -43,11 +43,10 @@ const styles = StyleSheet.create({
     container: {
         width: '100%',
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
+        paddingHorizontal: 10,
         paddingVertical: 15,
-        paddingTop: 50,
+        paddingTop: 40,
         backgroundColor: theme.bg,
         marginBottom:20
     },
@@ -62,19 +61,21 @@ const styles = StyleSheet.create({
     textContainer: {
         flex: 1,
         marginHorizontal: 15,
+        textAlign:"left"
     },
     greetingText: {
-        fontSize: 19,
-        color: theme.gray,
-        fontWeight:"600"
-    },
-    childName: {
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontSize: 20,
         color: theme.black,
+        fontWeight:"800"
     },
     iconContainer: {
         padding: 5,
+        backgroundColor: theme.primary,
+        borderRadius:100,
+        width:40,
+        height:40,
+        justifyContent:'center',
+        alignItems:'center'
     },
 });
 

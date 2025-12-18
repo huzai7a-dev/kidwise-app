@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   },
   link: {
     fontSize: 17,
-    color: theme.orange,
+    color: theme.primary,
     fontWeight: '400',
   },
 });
