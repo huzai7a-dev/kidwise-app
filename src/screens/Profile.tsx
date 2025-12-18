@@ -13,7 +13,7 @@ import { theme } from '@src/constants/colors';
 import { AVATARS } from '@src/constants/avatars';
 
 const menuItems = [
-  { label: 'Child Profile', icon: 'person-outline', screen: 'child_profile' },
+  { label: 'Child Profile', icon: 'person-outline', screen: 'update_child_profile' },
   { label: 'AI Prompt', icon: 'chatbubble-ellipses-outline', screen: 'ai_prompt' },
   { label: 'Voice History', icon: 'call-outline', screen: 'history' },
   { label: 'Progress History', icon: 'bar-chart-outline', screen: 'progress' },
@@ -28,6 +28,7 @@ const Profile = () => {
   const navigation = useNavigation();
 
   const handleLogout = () => {
+    navigation.navigate('login' as never);
   };
 
   return (
@@ -54,7 +55,7 @@ const Profile = () => {
             style={styles.menuItem}
             onPress={() => navigation.navigate(item.screen as never)}
           >
-            <Icon name={item.icon} size={20} color={theme.purple} />
+            <Icon name={item.icon} size={20} color={theme.primary} />
             <KWText style={styles.menuText}>{item.label}</KWText>
             <Icon name="chevron-forward-outline" size={20} color={theme.gray} />
           </TouchableOpacity>
@@ -74,7 +75,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 20,
     paddingTop: 60,
-    backgroundColor: '#fff',
+    backgroundColor: theme.secondaryBg,
     flexGrow: 1,
   },
   header: {
@@ -104,7 +105,7 @@ const styles = StyleSheet.create({
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F7F7F7',
+    backgroundColor: theme.bg,
     padding: 15,
     borderRadius: 10,
     justifyContent: 'space-between',

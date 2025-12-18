@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, ScrollView } from 'react-native';
 import { theme } from '@constants/colors';
 import { useNavigation, NavigationProp } from '@react-navigation/core';
 import type { RootStackParamList } from '@src/types/navigation';
@@ -7,8 +7,9 @@ import KWText from '@components/KWText';
 import { useForm, Controller, SubmitErrorHandler, SubmitHandler } from 'react-hook-form';
 import { useToast } from '@hooks/useToast';
 import { loginService } from '@services/auth.service';
+import authImage from '@assets/auth/auth.png';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Define the form data type
 interface LoginFormInputs {
   email: string;
   password: string;
@@ -22,8 +23,8 @@ const LoginScreen: React.FC = () => {
 
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
     try {
-      await loginService(data);
-
+      const { user } = await loginService(data);
+      await AsyncStorage.setItem('user_id', user.id);
       showToast('Login Success', 'success')
       nav.navigate('dashboard')
     } catch (error) {
@@ -41,63 +42,72 @@ const LoginScreen: React.FC = () => {
   };
 
   return (
-    <View style={styles.container}>
-      <KWText variant="title">Sign in</KWText>
-      <KWText variant="subtitle">Sign in with one of the following options.</KWText>
+    <KeyboardAvoidingView behavior="padding" style={styles.container}>
 
-      <KWText variant="label">Email</KWText>
-      <Controller
-        control={control}
-        rules={{ required: true }}
-        name="email"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            style={styles.input}
-            placeholder="Email"
-            placeholderTextColor={"gray"}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }} contentInsetAdjustmentBehavior="automatic" keyboardShouldPersistTaps="handled" >
+        <Image source={authImage} style={{ width: '100%', resizeMode: 'cover', marginBottom: 20 }} />
+        <KWText align='center' variant="title">Sign in</KWText>
+        <KWText align='center' variant="subtitle">Please sign in to your account </KWText>
+
+        <View style={styles.formContainer}>
+          <KWText variant="label">Email Address</KWText>
+          <Controller
+            control={control}
+            rules={{ required: true }}
+            name="email"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={styles.input}
+                placeholder="Email"
+                placeholderTextColor={"gray"}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+              />
+            )}
           />
-        )}
-      />
-      {errors.email && <KWText style={styles.errorText}>Email is required</KWText>}
+          {errors.email && <KWText style={styles.errorText}>Email is required</KWText>}
 
-      <KWText variant="label">Password</KWText>
-      <Controller
-        control={control}
-        rules={{ required: true, minLength: 6 }}
-        name="password"
-        render={({ field: { onChange, onBlur, value } }) => (
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            placeholderTextColor={"gray"}
-            secureTextEntry
-            value={value}
-            onChangeText={onChange}
-            onBlur={onBlur}
+          <KWText variant="label">Password</KWText>
+          <Controller
+            control={control}
+            rules={{ required: true, minLength: 6 }}
+            name="password"
+            render={({ field: { onChange, onBlur, value } }) => (
+              <TextInput
+                style={styles.input}
+                placeholder="Password"
+                placeholderTextColor={"gray"}
+                secureTextEntry
+                value={value}
+                onChangeText={onChange}
+                onBlur={onBlur}
+              />
+            )}
           />
-        )}
-      />
-      {errors.password && <KWText style={styles.errorText}>Password must be at least 6 characters</KWText>}
+          {errors.password && <KWText style={styles.errorText}>Password must be at least 6 characters</KWText>}
 
-      <TouchableOpacity>
-        <KWText variant="caption" align="right" style={{ marginBottom: 20 }}>Forgot Password ?</KWText>
-      </TouchableOpacity>
+          <TouchableOpacity>
+            <KWText variant="caption" align="right" style={{ marginBottom: 20, color: theme.primary }}>Forgot Password ?</KWText>
+          </TouchableOpacity>
 
-      <TouchableOpacity style={styles.btn} onPress={handleSubmit(onSubmit, onError)}>
-        <KWText style={styles.btnText}>LOGIN</KWText>
-      </TouchableOpacity>
+          <TouchableOpacity style={styles.btn} onPress={handleSubmit(onSubmit, onError)}>
+            <KWText style={styles.btnText}>LOGIN</KWText>
+          </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => nav.navigate("register")}> 
-        <KWText style={styles.bottomText}>
-          Don't have an account ? <KWText variant="link">Register</KWText>
-        </KWText>
-      </TouchableOpacity>
-    </View>
+          <TouchableOpacity onPress={() => nav.navigate("register")}>
+            <KWText style={styles.bottomText}>
+              Don't have an account ? <KWText color={theme.primary} variant="link">Register</KWText>
+            </KWText>
+          </TouchableOpacity>
+
+        </View>
+
+      </ScrollView>
+
+    </KeyboardAvoidingView>
   );
 };
 
@@ -107,8 +117,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.bg,
-    paddingHorizontal: 30,
-    paddingVertical: 70
+  },
+  formContainer: {
+    paddingHorizontal: 30
   },
   input: {
     backgroundColor: theme.bg,
@@ -121,15 +132,11 @@ const styles = StyleSheet.create({
     borderColor: theme.gray
   },
   btn: {
-    backgroundColor: theme.orange,
+    backgroundColor: theme.primary,
     paddingVertical: 15,
-    borderRadius: 100,
+    borderRadius: 10,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 5,
+
   },
   btnText: {
     color: '#fff',
@@ -137,9 +144,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   bottomText: {
-    textAlign: "center", 
-    marginTop: 20, 
-    fontSize: 17, 
+    textAlign: "center",
+    marginTop: 50,
+    fontSize: 17,
     color: theme.black,
     fontWeight: "300"
   },

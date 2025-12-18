@@ -7,6 +7,11 @@ import Notification from "@src/screens/Notification";
 import Profile from "@src/screens/Profile";
 import Stories from "@src/screens/Stories";
 import AvatarScreen from "@src/screens/AvatarScreen";
+import LessonScreen from "@src/screens/LessonScreen";
+import QuestionsScreen from "@src/screens/QuestionsScreen";
+import PinScreen from "@src/screens/PinScreen";
+import UpdateChildProfileScreen from "@src/screens/UpdateChildProfileScreen";
+import ProgressScreen from "@src/screens/ProgressScreen";
 
 export const navData = [
     {
@@ -61,6 +66,36 @@ export const navData = [
         id: 8,
         name: "avatar",
         component: AvatarScreen,
+        isPrivate: true,
+    },
+    {
+        id: 9,
+        name: "lesson",
+        component: LessonScreen,
+        isPrivate: true,
+    },
+    {
+        id: 10,
+        name: "lesson_questions",
+        component: QuestionsScreen,
+        isPrivate: true,
+    },
+    {
+        id: 11,
+        name: "pin",
+        component: PinScreen,
+        isPrivate: true,
+    },
+    {
+        id: 12,
+        name: "update_child_profile",
+        component: UpdateChildProfileScreen,
+        isPrivate: true,
+    },
+    {
+        id: 13,
+        name: "progress",
+        component: ProgressScreen,
         isPrivate: true,
     },
 ]

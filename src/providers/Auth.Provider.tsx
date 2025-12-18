@@ -2,6 +2,7 @@ import React, { createContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { server } from '@src/utils/server';
 import { ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface AuthContextType {
   user: User | null;
@@ -40,6 +41,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const signOut = async () => {
     await server.auth.signOut();
+    await AsyncStorage.removeItem('user_id');
     setUser(null);
     setSession(null);
   };

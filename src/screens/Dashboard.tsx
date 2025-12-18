@@ -1,150 +1,187 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-    Animated,
-    Dimensions,
-    FlatList,
     ScrollView,
     StyleSheet,
     View,
-    NativeScrollEvent,
-    NativeSyntheticEvent,
     Image,
-    TouchableOpacity
+    Pressable,
+    Text
 } from "react-native";
 import BottomNavBar from "@src/components/BottomNavbar";
 import Header from "@src/components/Header";
 import KWText from "@src/components/KWText";
 import { theme } from "@src/constants/colors";
-import CategoryCard from "@src/components/CategoryCard";
-import { bannerData } from "@src/constants/banner";
 import { NavigationProp, useNavigation } from "@react-navigation/core";
 import { RootStackParamList } from "@src/types/navigation";
-
-const { width } = Dimensions.get('window');
-
-type BannerItem = {
-    id: string;
-    image: string;
-};
-
-type CategoryItem = {
-    id: string;
-    title: string;
-    icon: string;
-    color: string;
-};
-
-const categoryData: CategoryItem[] = [
-    { id: '1', title: 'Rhymes/Songs', icon: '🎵', color: theme.orange },
-    { id: '2', title: 'Learning Activities', icon: '📚', color: theme.blue },
-    { id: '3', title: 'Animal Recognition', icon: '🦁', color: theme.pink },
-    { id: '4', title: 'Object Recognition', icon: '🍎', color: theme.purple },
-    { id: '5', title: 'Holiday Content', icon: '🎄', color: theme.orange },
-];
+import { fetchChildrenByParent } from "@src/services/child.service";
+import { Child } from "@src/types/child";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import brainImg from '@assets/home/brain.png'
+import alphabet from '@assets/home/alphabet.png'
+import superman from '@assets/home/superman.png'
+import Entypo from "react-native-vector-icons/Entypo";
+import FontAwesome from "react-native-vector-icons/FontAwesome";
+import FontAwesome5 from 'react-native-vector-icons/FontAwesome5';
+import FontAwesome6 from 'react-native-vector-icons/FontAwesome6';
+import { fetchAllLessonResponses, fetchTodayLessonResponses } from "@src/services/lesson.service";
 
 const Dashboard = () => {
-    const flatListRef = useRef<FlatList>(null);
-    const scrollX = useRef(new Animated.Value(0)).current;
-    const [activeIndex, setActiveIndex] = useState(0);
-    const navigation = useNavigation<NavigationProp<RootStackParamList>>()
-    useEffect(() => {
-        let interval: NodeJS.Timeout;
-        const startAutoScroll = () => {
-            interval = setInterval(() => {
-                setActiveIndex(prevIndex => {
-                    const nextIndex = (prevIndex + 1) % bannerData.length;
-                    flatListRef.current?.scrollToIndex({
-                        index: nextIndex,
-                        animated: true,
-                    });
-                    return nextIndex;
-                });
-            }, 3000);
-        };
-        startAutoScroll();
-        return () => clearInterval(interval);
-    }, []);
+    const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+    const [childInfo, setChildInfo] = useState<Child | null>(null);
+    const [attemptedQuizes, setAttemptedQuizes] = useState<number>(0);
+    const [allAttemptedQuize, setAllAttemptedQuize] = useState<number>(0);
 
-    const renderBannerItem = ({ item }: { item: BannerItem }) => (
-        <TouchableOpacity
-            onPress={() => navigation.navigate("stories", { id: item.id })}
-            style={styles.bannerCard}
-            activeOpacity={0.8}
-        >
-            <Image
-                source={{ uri: item.image }}
-                style={styles.bannerImage}
-                resizeMode="cover"
-            />
-        </TouchableOpacity>
-    );
-    const renderCategoryItem = ({ item }: { item: CategoryItem }) => (
-        <CategoryCard item={item} />
-    );
+    useEffect(() => {
+        const loadChild = async () => {
+            const childrens = await fetchChildrenByParent()
+            if (childrens.length > 0) {
+                const storedChildId = await AsyncStorage.getItem("child_id");
+                const child = childrens.find(c => c.id.toString() === storedChildId) || childrens[0];
+                setChildInfo(child);
+
+                if (child) {
+                    const responses = await fetchTodayLessonResponses(child.id.toString());
+                    const allResponses = await fetchAllLessonResponses(child.id.toString());
+                    setAttemptedQuizes(responses.length);
+                    setAllAttemptedQuize(allResponses.length);
+                }
+            }
+        };
+        loadChild();
+    }, []);
 
     return (
         <View style={styles.container}>
-
-            <Header childName="Alex" onProfilePress={() => navigation.navigate("profile")} onNotificationPress={() => navigation.navigate("notification")} />
+            <Header
+                avatarIndex={childInfo?.avatar_id || 1}
+                childName={childInfo?.full_name || "Child"}
+                onProfilePress={() => navigation.navigate("pin")}
+                onNotificationPress={() => navigation.navigate("notification")}
+            />
 
             <ScrollView contentContainerStyle={styles.scrollViewContent}>
 
-
-                <View style={styles.section}>
-                    <FlatList
-                        ref={flatListRef}
-                        data={bannerData}
-                        renderItem={renderBannerItem}
-                        keyExtractor={(item) => item.id}
-                        horizontal
-                        pagingEnabled
-                        showsHorizontalScrollIndicator={false}
-                        onScroll={Animated.event(
-                            [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-                            { useNativeDriver: false }
-                        )}
-                        scrollEventThrottle={16}
-                        onMomentumScrollEnd={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
-                            const newIndex = Math.round(event.nativeEvent.contentOffset.x / width);
-                            setActiveIndex(newIndex);
-                        }}
-                    />
-                    <View style={styles.pagination}>
-                        {bannerData.map((_, i) => (
-                            <View
-                                key={i}
-                                style={[
-                                    styles.paginationDot,
-                                    i === activeIndex ? styles.paginationDotActive : {},
-                                ]}
-                            />
-                        ))}
+                {/* Banner Section */}
+                <View style={styles.bannerCard}>
+                    <View style={styles.bannerContent}>
+                        <KWText style={styles.bannerText}>
+                            Find amazing lessons for your kids
+                        </KWText>
+                        <Pressable
+                            onPress={() => navigation.navigate("lesson")}
+                            style={styles.bannerBtn}
+                        >
+                            <Text style={styles.bannerBtnText}>Find Now</Text>
+                        </Pressable>
                     </View>
+                    <Image source={brainImg} />
                 </View>
 
-                <View style={styles.section}>
-                    <KWText style={styles.sectionTitle}>Child's Progress</KWText>
-                    <View style={styles.progressCard}>
-                        <KWText style={styles.progressText}>Reading Level: Beginner</KWText>
-                        <KWText style={styles.progressText}>Activities Completed: 15</KWText>
-                        <KWText style={styles.progressText}>Next Goal: Learn 5 new words!</KWText>
-                        <View style={styles.progressBarBackground}>
-                            <View style={[styles.progressBarFill, { width: '60%' }]} />
+                {/* Attempt Quiz */}
+                <View style={styles.whiteCard}>
+                    <View style={styles.rowBetween}>
+                        <Text style={styles.grayText}>Attempted Quizes</Text>
+                        <Text style={styles.boldText}>{allAttemptedQuize}</Text>
+                    </View>
+
+                    <View style={styles.challengeRow}>
+                        <View style={styles.trophyIconWrapper}>
+                            <Entypo name="trophy" size={20} color={theme.primary} />
+                        </View>
+                        <View>
+                            <Text style={styles.boldText}>Today's Challenge</Text>
+                            <Text style={styles.challengeSub}>Complete {attemptedQuizes} Quiz</Text>
                         </View>
                     </View>
                 </View>
 
-                <View style={styles.section}>
-                    <KWText style={styles.sectionTitle}>Learning Categories</KWText>
-                    <FlatList
-                        data={categoryData}
-                        renderItem={renderCategoryItem}
-                        keyExtractor={(item) => item.id}
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.categoryListContent}
-                    />
+                {/* Alphabet Progress */}
+                <View style={styles.whiteCard}>
+                    <View style={styles.rowBetween}>
+                        <View style={styles.row}>
+                            <Image source={alphabet} style={styles.alphabetImg} />
+                            <Text style={styles.boldText}>Alphabet</Text>
+                        </View>
+                        <Image source={superman} style={styles.alphabetImg} />
+                    </View>
+
+                    <View style={styles.progressBg}>
+                        <View style={styles.progressFill} />
+                    </View>
+
+                    <Pressable
+                        onPress={() => navigation.navigate("lesson")}
+                        style={styles.primaryBtn}
+                    >
+                        <Text style={styles.primaryBtnText}>Find Now</Text>
+                    </Pressable>
                 </View>
+
+                {/* Learning Modes */}
+                <View style={styles.section}>
+                    <KWText style={styles.sectionTitle}>Learning Modes</KWText>
+
+                    <Pressable
+                        onPress={() => navigation.navigate("stories", { id: 1 })}
+                        style={styles.itemCard}
+                    >
+                        <View style={styles.row}>
+                            <View style={[styles.iconBg, styles.greenBg]}>
+                                <FontAwesome name="video-camera" size={20} color={theme.darkGreen} />
+                            </View>
+                            <Text style={styles.itemTitle}>Rhymes</Text>
+                        </View>
+                        <Entypo name="chevron-thin-right" size={20} color={theme.darkGray} />
+                    </Pressable>
+
+                    <Pressable
+                        onPress={() => navigation.navigate("lesson")}
+                        style={styles.itemCard}
+                    >
+                        <View style={styles.row}>
+                            <View style={[styles.iconBg, styles.blueBg]}>
+                                <FontAwesome name="tasks" size={20} color={theme.primary} />
+                            </View>
+                            <Text style={styles.itemTitle}>Quizes</Text>
+                        </View>
+                        <Entypo name="chevron-thin-right" size={20} color={theme.darkGray} />
+                    </Pressable>
+
+                    <Pressable
+                        onPress={() => navigation.navigate("avatar")}
+                        style={styles.itemCard}
+                    >
+                        <View style={styles.row}>
+                            <View style={[styles.iconBg, styles.orangeBg]}>
+                                <FontAwesome5 name="user-astronaut" size={20} color="#EA580C" />
+                            </View>
+                            <Text style={styles.itemTitle}>AI Experience</Text>
+                        </View>
+                        <Entypo name="chevron-thin-right" size={20} color={theme.darkGray} />
+                    </Pressable>
+                </View>
+
+                {/* Parent Dashboard */}
+                <View style={styles.sectionBottom}>
+                    <Pressable
+                        onPress={() => navigation.navigate("pin")}
+                        style={styles.parentRow}
+                    >
+                        <View style={styles.row}>
+                            <View style={styles.parentIcon}>
+                                <FontAwesome6 name="person-chalkboard" size={20} color={theme.white} />
+                            </View>
+                            <View>
+                                <Text style={styles.itemTitle}>Parent Dashboard</Text>
+                                <Text style={styles.grayText}>
+                                    Track progress & activities
+                                </Text>
+                            </View>
+                        </View>
+                        <Entypo name="chevron-thin-right" size={20} color={theme.darkGray} />
+                    </Pressable>
+                </View>
+
             </ScrollView>
 
             <BottomNavBar />
@@ -153,107 +190,127 @@ const Dashboard = () => {
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: theme.bg,
+    container: { flex: 1, backgroundColor: theme.secondaryBg },
+
+    scrollViewContent: { flexGrow: 1, paddingBottom: 20 },
+
+    section: { marginBottom: 20, paddingHorizontal: 20 },
+
+    bannerCard: {
+        backgroundColor: theme["light-primary"],
+        height: 150,
+        marginHorizontal: 20,
+        borderRadius: 20,
+        flexDirection: "row",
+        alignItems: "center",
+        padding: 15,
+        marginBottom: 20
     },
-    scrollViewContent: {
-        flexGrow: 1,
-        paddingBottom: 20,
+    bannerContent: { flex: 1, justifyContent: "center" },
+    bannerText: { color: theme.white, fontSize: 20.94, fontWeight: "bold" },
+    bannerBtn: {
+        marginTop: 10,
+        backgroundColor: theme.white,
+        paddingVertical: 8,
+        paddingHorizontal: 15,
+        borderRadius: 100,
+        alignSelf: "flex-start"
     },
-    section: {
-        marginBottom: 20,
-        paddingHorizontal: 20,
+    bannerBtnText: { color: theme.primary },
+
+    whiteCard: {
+        backgroundColor: theme.white,
+        marginHorizontal: 20,
+        borderRadius: 20,
+        padding: 15,
+        marginBottom: 20
     },
+
+    row: { flexDirection: "row", alignItems: "center", gap: 15 },
+    rowBetween: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center"
+    },
+
+    grayText: { color: theme.darkGray, fontSize: 12 },
+    boldText: { color: theme.black, fontWeight: "bold", fontSize: 15 },
+
+    challengeRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 15 },
+
+    trophyIconWrapper: {
+        minWidth: 35,
+        minHeight: 35,
+        backgroundColor: theme.skyBlue,
+        borderRadius: 100,
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    challengeSub: { color: theme.darkGray, fontSize: 12, marginTop: 3 },
+
+    alphabetImg: { width: 60, height: 60 },
+
+    progressBg: {
+        backgroundColor: theme.lightGray,
+        height: 8,
+        borderRadius: 100,
+        marginTop: 20
+    },
+    progressFill: {
+        backgroundColor: theme.primary,
+        width: "50%",
+        height: "100%",
+        borderRadius: 100
+    },
+
+    primaryBtn: {
+        marginTop: 20,
+        backgroundColor: theme.primary,
+        paddingVertical: 15,
+        paddingHorizontal: 15,
+        borderRadius: 10,
+        width: "100%",
+        justifyContent: "center",
+        alignItems: "center"
+    },
+    primaryBtnText: { color: theme.white },
+
     sectionTitle: {
         fontSize: 20,
-        fontWeight: 'bold',
+        fontWeight: "bold",
         color: theme.black,
-        marginBottom: 15,
+        marginBottom: 15
     },
-    bannerCard: {
-        width: width - 40,
-        height: 200,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 10,
+
+    itemCard: {
+        backgroundColor: theme.white,
+        padding: 15,
+        borderRadius: 10,
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 10
     },
-    bannerImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 15,
+    iconBg: { padding: 10, borderRadius: 10 },
+    greenBg: { backgroundColor: "#DCFCE7" },
+    blueBg: { backgroundColor: "#DBEAFE" },
+    orangeBg: { backgroundColor: "#FFEDD5" },
+
+    itemTitle: { color: theme.black, fontWeight: "bold", fontSize: 16 },
+
+    parentRow: {
+        padding: 15,
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center"
     },
-    pagination: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        marginTop: 10,
+    parentIcon: {
+        backgroundColor: theme.primary,
+        padding: 10,
+        borderRadius: 10
     },
-    paginationDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: theme.gray,
-        marginHorizontal: 4,
-    },
-    paginationDotActive: {
-        backgroundColor: theme.purple,
-    },
-    progressCard: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 15,
-        padding: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-        elevation: 3,
-    },
-    progressText: {
-        fontSize: 16,
-        color: theme.black,
-        marginBottom: 8,
-    },
-    progressBarBackground: {
-        height: 10,
-        backgroundColor: '#E0E0E0',
-        borderRadius: 5,
-        marginTop: 10,
-        overflow: 'hidden',
-    },
-    progressBarFill: {
-        height: '100%',
-        backgroundColor: theme.blue,
-        borderRadius: 5,
-    },
-    categoryListContent: {
-        paddingRight: 10,
-    },
-    categoryCardWrapper: {
-        marginRight: 15,
-    },
-    categoryCard: {
-        width: 120,
-        height: 120,
-        borderRadius: 15,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-        elevation: 5,
-    },
-    categoryIcon: {
-        fontSize: 40,
-        marginBottom: 10,
-    },
-    categoryTitle: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#FFFFFF',
-        textAlign: 'center',
-    },
+
+    sectionBottom: { marginBottom: 100, paddingHorizontal: 20 }
 });
 
 export default Dashboard;

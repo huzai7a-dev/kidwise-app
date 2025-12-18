@@ -11,13 +11,15 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function Navigation() {
   const { isLoggedIn } = useAuth()
 
-  const screens = navData?.filter(screen => isLoggedIn ? screen.isPrivate : !screen.isPrivate);
+  // const screens = navData.filter(
+  //   screen => screen.name === 'onboarding' || (isLoggedIn ? screen.isPrivate : !screen.isPrivate)
+  // );
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: "slide_from_right" }}>
         {
-          screens?.map((i) => (
+          navData?.map((i) => (
             <Stack.Screen key={i.id} name={i?.name} component={i.component} />
           ))
         }
