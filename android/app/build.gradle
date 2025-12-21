@@ -57,8 +57,4 @@ dependencies {
     } else {
         implementation jscFlavor
     }
-    implementation project(':livekit_react-native')
-    implementation project(':livekit_react-native-webrtc')
-
-    implementation project(':react-native-nitro-modules')
 }

@@ -27,6 +27,7 @@ const ChildProfileScreen = ({ route }: Props) => {
   const nav = useNavigation<NavigationProp<RootStackParamList>>();
 
   const parentId = route?.params?.parentId;
+  const nextRoute = route?.params?.nextRoute;
   if (!parentId) nav.goBack();
 
   const avatars = Object.entries(AVATARS).map(([id, src]) => ({ id, src }));
@@ -64,7 +65,7 @@ const ChildProfileScreen = ({ route }: Props) => {
         pin: ''
       });
       ToastAndroid.show('Child profile created successfully!', ToastAndroid.SHORT);
-      nav.navigate('login');
+      nav.navigate(nextRoute ? nextRoute : 'login');
     } catch (error) {
       console.log(error)
       Alert.alert('Child profile creation failed, please try again.')
@@ -74,7 +75,7 @@ const ChildProfileScreen = ({ route }: Props) => {
   return (
     <KeyboardAvoidingView style={styles.container} behavior="padding">
 
-      <View style={{ flex: 1, paddingTop: 50}}>
+      <View style={{ flex: 1, paddingTop: 50 }}>
         <KWText variant="title" size={28}>Create Your Child Profile</KWText>
         <KWText variant="subtitle" size={16}>Setup to Continue</KWText>
 

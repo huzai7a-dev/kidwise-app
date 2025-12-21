@@ -12,6 +12,8 @@ import QuestionsScreen from "@src/screens/QuestionsScreen";
 import PinScreen from "@src/screens/PinScreen";
 import UpdateChildProfileScreen from "@src/screens/UpdateChildProfileScreen";
 import ProgressScreen from "@src/screens/ProgressScreen";
+import SessionDetailScreen from "@src/screens/SessionDetailsScreen";
+import AiSessionScreen from "@src/screens/AiSessionScreen";
 
 export const navData = [
     {
@@ -96,6 +98,18 @@ export const navData = [
         id: 13,
         name: "progress",
         component: ProgressScreen,
+        isPrivate: true,
+    },
+    {
+        id: 14,
+        name: "ai_sessions",
+        component: AiSessionScreen,
+        isPrivate: true,
+    },
+    {
+        id: 15,
+        name: "session_detail",
+        component: SessionDetailScreen,
         isPrivate: true,
     },
 ]

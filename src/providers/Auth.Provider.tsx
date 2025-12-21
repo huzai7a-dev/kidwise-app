@@ -1,4 +1,4 @@
-import React, { createContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useEffect, useState, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { server } from '@src/utils/server';
 import { ActivityIndicator } from 'react-native';
@@ -12,10 +12,14 @@ export interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
-export const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const AuthContext = createContext<AuthContextType | undefined>(
+  undefined,
+);
 
 // Create the provider component
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -51,10 +55,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     session,
     loading,
     signOut,
-    isLoggedIn: !!user
+    isLoggedIn: !!user,
   };
 
-  if(loading) return <ActivityIndicator size={'large'} />
+  if (loading) return <ActivityIndicator size={'large'} />;
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

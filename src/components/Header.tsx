@@ -7,9 +7,10 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 interface HeaderProps {
     childName: string;
-    avatarIndex?:number
+    avatarIndex?: number
     onProfilePress: () => void;
     onNotificationPress: () => void;
+    title?: string
 }
 
 const getGreeting = (): string => {
@@ -19,13 +20,18 @@ const getGreeting = (): string => {
     return "Good Evening";
 };
 
-const Header: React.FC<HeaderProps> = ({ childName, onProfilePress, onNotificationPress,avatarIndex=1 }) => {
+const Header: React.FC<HeaderProps> = ({ childName, onProfilePress, onNotificationPress, avatarIndex = 1, title }) => {
     const greeting = getGreeting();
 
     return (
         <View style={styles.container}>
             <View style={styles.textContainer}>
-                <KWText style={styles.greetingText}>{greeting}, {childName}</KWText>
+                {
+                    title ?
+                        <KWText style={styles.greetingText}>{title}</KWText> :
+                        <KWText style={styles.greetingText}>{greeting}, {childName}</KWText>
+
+                }
             </View>
 
             <TouchableOpacity onPress={onProfilePress} style={styles.avatarContainer}>
@@ -48,7 +54,7 @@ const styles = StyleSheet.create({
         paddingVertical: 15,
         paddingTop: 40,
         backgroundColor: theme.bg,
-        marginBottom:20
+        marginBottom: 20
     },
     avatarContainer: {
         padding: 5,
@@ -61,21 +67,21 @@ const styles = StyleSheet.create({
     textContainer: {
         flex: 1,
         marginHorizontal: 15,
-        textAlign:"left"
+        textAlign: "left"
     },
     greetingText: {
         fontSize: 20,
         color: theme.black,
-        fontWeight:"800"
+        fontWeight: "800"
     },
     iconContainer: {
         padding: 5,
         backgroundColor: theme.primary,
-        borderRadius:100,
-        width:40,
-        height:40,
-        justifyContent:'center',
-        alignItems:'center'
+        borderRadius: 100,
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center'
     },
 });
 

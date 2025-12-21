@@ -1,34 +1,18 @@
 {
   "extends": "@react-native/typescript-config",
   "compilerOptions": {
-   // ... other configs, if any
-   "baseUrl": "." ,
-   "paths": {
+    "jsx": "react",
+    "baseUrl": ".",
+    "paths": {
       "@src/*": ["src/*"],
-      "@services/*": [
-        "src/services/*"
-      ],
-      "@assets/*": [
-        "src/assets/*"
-      ],
-      "@components/*": [
-        "src/components/*"
-      ],
-      "@screens/*": [
-        "src/screens/*"
-      ],
-      "@constants/*": [
-        "src/constants/*"
-      ],
-      "@utils/*": [
-        "src/utils/*"
-      ],
-      "@hooks/*": [
-        "src/hooks/*"
-      ],
-      "@types/*": [
-        "src/types/*"
-      ]
-   },
-}
+      "@services/*": ["src/services/*"],
+      "@assets/*": ["src/assets/*"],
+      "@components/*": ["src/components/*"],
+      "@screens/*": ["src/screens/*"],
+      "@constants/*": ["src/constants/*"],
+      "@utils/*": ["src/utils/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@types/*": ["src/types/*"]
+    }
+  }
 }

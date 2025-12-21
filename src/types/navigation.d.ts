@@ -8,9 +8,11 @@ export type RootStackParamList = {
   pin: undefined,
   notification: undefined,
   progress: undefined,
+  ai_sessions: undefined,
   update_child_profile: undefined,
-  onboarding: { parentId: string };
+  onboarding: { parentId: string,nextRoute?:string };
   stories: { id: number };
   lesson: undefined;
   lesson_questions: { lessonId: string };
+  session_detail: { sessionId: string };
 };
