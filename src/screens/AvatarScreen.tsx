@@ -1,514 +1,315 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  SafeAreaView,
-  KeyboardAvoidingView,
-  Platform,
-  PermissionsAndroid,
-  InteractionManager,
-} from 'react-native';
-import {
-  registerGlobals,
-  LiveKitRoom,
-  VideoTrack,
-  useTracks,
-  isTrackReference,
-  AudioSession,
-} from '@livekit/react-native';
-import { Track } from 'livekit-client';
-import AudioRecorderPlayer, {
-  AVEncoderAudioQualityIOSType,
-  AudioEncoderAndroidType,
-  AudioSourceAndroidType,
-  OutputFormatAndroidType,
-} from 'react-native-audio-recorder-player';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, TouchableOpacity, Text, Dimensions, Animated, Alert } from 'react-native';
+import LottieView from 'lottie-react-native';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import RNFS from 'react-native-fs';
 
-registerGlobals();
+import avatar_idle from '@assets/avatar_idle.json';
+import avatar_talking from '@assets/avatar_talking.json';
+import avatar_thinking from '@assets/loading.json';
+import useRecording from '@src/hooks/useRecording';
+import { theme } from '@src/constants/colors';
+import { uploadAudio, startAvatarSession } from '@src/services/uploadAudio.service';
 
-const HEYGEN_API_URL = 'https://api.heygen.com/v1';
-const BACKEND_API_URL = process.env.BACKEND_API_URL || 'http://localhost:4000';
+const { width, height } = Dimensions.get('window');
 
-const SILENCE_THRESHOLD = -30; // dB threshold (adjust based on testing)
-const SILENCE_DURATION = 1500; // ms of silence before auto-stop
+const AvatarScreen = () => {
+  const { startRecording, stopRecording } = useRecording();
+  const [appState, setAppState] = useState('idle');
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [aiText, setAiText] = useState('');
+  const glowAnim = useRef(new Animated.Value(1)).current;
+  const audioPlayer = useRef(new AudioRecorderPlayer()).current;
 
-export default function AvatarScreen() {
-  const [wsUrl, setWsUrl] = useState('');
-  const [token, setToken] = useState('');
-  const [sessionToken, setSessionToken] = useState('');
-  const [heygenSessionId, setHeygenSessionId] = useState('');
-  const [conversationSessionId, setConversationSessionId] = useState('');
-  const [connected, setConnected] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [speaking, setSpeaking] = useState(false);
-  const [recording, setRecording] = useState(false);
-  const [recordTime, setRecordTime] = useState('00:00');
-  const [recordLoading, setRecordLoading] = useState(false);
-
-  const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const autoRestartTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const audioRecorderPlayer = AudioRecorderPlayer;
-
-  // ✅ Start Audio Session
+  // Cleanup audio player on unmount
   useEffect(() => {
-    AudioSession.startAudioSession().catch(err => console.error(err));
     return () => {
-      AudioSession.stopAudioSession().catch(err => console.error(err));
-      // Cleanup timers
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      if (autoRestartTimeoutRef.current) clearTimeout(autoRestartTimeoutRef.current);
+      audioPlayer.stopPlayer();
+      audioPlayer.removePlayBackListener();
     };
   }, []);
 
-  const createSession = async () => {
-    try {
-      setLoading(true);
 
-      // Get token from your backend
-      const tokenResp = await fetch(`${BACKEND_API_URL}/api/start-avatar`, {
-        method: 'POST',
-      });
-      const tokenData = await tokenResp.json();
-      const newToken = tokenData.token;
-      setSessionToken(newToken);
-      // backend conversation session id (used for STT/GPT processing)
-      if (tokenData.sessionId) {
-        setConversationSessionId(tokenData.sessionId);
+  // Initialize session on mount
+  useEffect(() => {
+    console.log('Initializing session');
+    const initSession = async () => {
+      try {
+        const data = await startAvatarSession();
+        console.log('Session created:', data.sessionId);
+        setSessionId(data.sessionId);
+      } catch (error) {
+        console.error('Failed to start session', error);
+        Alert.alert('Error', 'Failed to initialize session. Please restart the app.');
       }
+    };
+    initSession();
+  }, []);
 
-      // Create HeyGen session
-      const response = await fetch(`${HEYGEN_API_URL}/streaming.new`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${newToken}`,
-        },
-        body: JSON.stringify({
-          quality: 'high',
-          version: 'v2',
-          video_encoding: 'H264',
-        }),
-      });
-      const data = await response.json();
-
-      console.log({ data });
-
-      setHeygenSessionId(data.data.session_id);
-      setWsUrl(data.data.url);
-      setToken(data.data.access_token);
-
-      // Start streaming session
-      await fetch(`${HEYGEN_API_URL}/streaming.start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${newToken}`,
-        },
-        body: JSON.stringify({ session_id: data.data.session_id }),
-      });
-
-      setConnected(true);
-    } catch (err) {
-      console.error('Error creating session:', err);
-    } finally {
-      setLoading(false);
+  // Animation for listening state
+  useEffect(() => {
+    if (appState === 'listening') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(glowAnim, { toValue: 1.1, duration: 800, useNativeDriver: true }),
+          Animated.timing(glowAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      glowAnim.stopAnimation();
+      glowAnim.setValue(1);
     }
-  };
+  }, [appState]);
 
-  // send arbitrary text to HeyGen to speak (used after backend returns an AI reply)
-  const sendHeygenText = async (payloadText: string) => {
-    console.log('Sending text to HeyGen:', payloadText);
-    if (!payloadText?.trim()) return;
+  // Play audio from base64
+  const playAudioFromBase64 = async (base64Audio: string) => {
     try {
-      setSpeaking(true);
-      const res = await fetch(`${HEYGEN_API_URL}/streaming.task`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionToken}`,
-        },
-        body: JSON.stringify({
-          session_id: heygenSessionId,
-          text: payloadText,
-          task_type: 'repeat',
-        }),
-      });
+      // Convert base64 to file
+      const audioPath = `${RNFS.CachesDirectoryPath}/response_${Date.now()}.mp3`;
+      await RNFS.writeFile(audioPath, base64Audio, 'base64');
 
-      console.log('HeyGen task response:', await res.json());
+      console.log('🔊 Playing audio from:', audioPath);
 
-      // Estimate speaking duration based on text length (rough heuristic)
-      // Average: ~150 words per minute => ~2.5 words/sec => ~400ms per word
-      const wordCount = payloadText.trim().split(/\s+/).length;
-      const estimatedDuration = Math.max(wordCount * 400, 2000); // min 2 seconds
+      // Play the audio
+      await audioPlayer.startPlayer(audioPath);
 
-      // Auto-restart recording after avatar finishes speaking
-      autoRestartTimeoutRef.current = setTimeout(() => {
-        setSpeaking(false);
-        // Auto-start recording again
-        startRecording();
-      }, estimatedDuration);
-    } catch (err) {
-      console.error('Error sending heygen text:', err);
-      setSpeaking(false);
-    }
-  };
+      audioPlayer.addPlayBackListener((e) => {
+        // Check if playback is complete
+        if (e.currentPosition >= e.duration && e.duration > 0) {
+          console.log('✅ Audio playback finished');
+          audioPlayer.stopPlayer();
+          audioPlayer.removePlayBackListener();
+          setAppState('idle');
+          setAiText(''); // Clear text after speaking
 
-  // Request Android permission (runtime) for recording
-  const requestAndroidPermission = async () => {
-    if (Platform.OS !== 'android') return true;
-    try {
-      const granted = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-        {
-          title: 'Audio Recording Permission',
-          message: 'This app needs access to your microphone to record audio.',
-          buttonNeutral: 'Ask Me Later',
-          buttonNegative: 'Cancel',
-          buttonPositive: 'OK',
-        },
-      );
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
-    } catch (err) {
-      console.warn(err);
-      return false;
-    }
-  };
-
-  // Start recording with VAD
-  const startRecording = async () => {
-    try {
-      // Wait for activity to be ready
-      await new Promise(resolve =>
-        InteractionManager.runAfterInteractions(() => resolve(undefined)),
-      );
-
-      const ok = await requestAndroidPermission();
-      if (!ok) return;
-
-      setRecordLoading(true);
-
-      const audioSet = {
-        AudioEncoderAndroid: AudioEncoderAndroidType.AAC,
-        AudioSourceAndroid: AudioSourceAndroidType.MIC,
-        AVEncoderAudioQualityKeyIOS: AVEncoderAudioQualityIOSType.high,
-        AVNumberOfChannelsKeyIOS: 1,
-        OutputFormatAndroid: OutputFormatAndroidType.MPEG_4,
-      };
-
-      const uri = await audioRecorderPlayer.startRecorder(
-        undefined,
-        audioSet,
-        true, // meteringEnabled
-      );
-
-      console.log('Recorder started, uri:', uri);
-
-      // Set recording state BEFORE adding listener to prevent race condition
-      setRecording(true);
-
-      // Add metering listener for VAD
-      audioRecorderPlayer.addRecordBackListener((e: any) => {
-        const currentTime = audioRecorderPlayer.mmss(
-          Math.floor(e.currentPosition / 1000),
-        );
-        setRecordTime(currentTime);
-
-        // Silence detection
-        const currentMetering = e.currentMetering || 0;
-
-        if (currentMetering < SILENCE_THRESHOLD) {
-          // User is silent
-          if (!silenceTimerRef.current) {
-            silenceTimerRef.current = setTimeout(() => {
-              console.log('Silence detected, auto-stopping...');
-              stopRecording();
-            }, SILENCE_DURATION);
-          }
-        } else {
-          // User is speaking, reset silence timer
-          if (silenceTimerRef.current) {
-            clearTimeout(silenceTimerRef.current);
-            silenceTimerRef.current = null;
-          }
+          // Clean up the temp file
+          RNFS.unlink(audioPath).catch(err =>
+            console.log('Failed to delete temp audio:', err)
+          );
         }
       });
-    } catch (err) {
-      console.error('Failed to start recorder', err);
-      // Reset state on error
-      setRecording(false);
-    } finally {
-      setRecordLoading(false);
+    } catch (error) {
+      console.error('Error playing audio:', error);
+      setAppState('idle');
+      Alert.alert('Error', 'Failed to play audio response');
     }
   };
 
-  // Stop recording and send to backend
-  const stopRecording = async () => {
-    // Guard: Don't try to stop if not recording
-    if (!recording) {
-      console.log('stopRecording called but not recording, skipping...');
-      return;
+  const handlePress = async () => {
+    if (appState === 'idle' || appState === 'speaking') {
+      // Stop any ongoing audio
+      await audioPlayer.stopPlayer();
+      setAiText('');
+
+      if (!sessionId) {
+        Alert.alert("Error", "Session not initialized. Please wait.");
+        return;
+      }
+
+      const { started } = await startRecording();
+      if (started) {
+        setAppState('listening');
+      } else {
+        Alert.alert(
+          "Recording Failed",
+          "Failed to start recording. Please check microphone permissions."
+        );
+      }
     }
+    else if (appState === 'listening') {
+      setAppState('thinking');
+      const path = await stopRecording();
 
-    try {
-      setRecordLoading(true);
+      if (path && sessionId) {
+        try {
+          console.log('📤 Sending audio to backend...');
+          const result = await uploadAudio(path, sessionId);
 
-      // Clear silence timer
-      if (silenceTimerRef.current) {
-        clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = null;
+          console.log('📥 Received response:', {
+            userText: result.userText,
+            aiResponse: result.aiResponse,
+            hasAudio: !!result.audioBase64,
+            processingTime: result.processingTime
+          });
+
+          setAiText(result.aiResponse);
+          setAppState('speaking');
+
+          // Play the audio response if available
+          if (result.audioBase64) {
+            await playAudioFromBase64(result.audioBase64);
+          } else {
+            // Fallback: just show text for a few seconds
+            console.warn('⚠️ No audio received, using text-only fallback');
+            setTimeout(() => {
+              setAppState('idle');
+              setAiText('');
+            }, 5000);
+          }
+        } catch (error: any) {
+          console.error('Process error:', error);
+          setAppState('idle');
+
+          const errorMessage = error.response?.data?.error || 'Failed to process audio';
+          Alert.alert(
+            "Error",
+            errorMessage
+          );
+        }
+      } else {
+        setAppState('idle');
+        Alert.alert(
+          "Error",
+          "Recording failed. Please try again."
+        );
       }
-
-      const filePath = await audioRecorderPlayer.stopRecorder();
-      audioRecorderPlayer.removeRecordBackListener();
-      setRecording(false);
-      setRecordTime('00:00');
-      console.log('Recording stopped, file:', filePath);
-
-      // upload file to backend for STT + GPT
-      const form = new FormData();
-      // RN fetch expects file object with uri/name/type
-      const filename = filePath.split('/').pop() || 'recording.m4a';
-      const fileType =
-        filename.endsWith('.m4a') || filename.endsWith('.mp4')
-          ? 'audio/mp4'
-          : 'audio/m4a';
-      // @ts-ignore - FormData in RN accepts this shape
-      form.append('audioFile', {
-        uri: Platform.OS === 'android' ? `file://${filePath}` : filePath,
-        name: filename,
-        type: fileType,
-      });
-      // include conversation session id so backend can maintain context
-      form.append('sessionId', conversationSessionId || '');
-
-      console.log({ form });
-      const resp = await fetch(`${BACKEND_API_URL}/api/process-conversation`, {
-        method: 'POST',
-        headers: {
-          // DO NOT set Content-Type here - let fetch set the multipart boundary
-        },
-        body: form as any,
-      });
-
-      const result = await resp.json();
-      console.log({ result });
-      // backend returns { userText, aiResponse }
-      if (result?.aiResponse) {
-        // send AI response text to HeyGen to make avatar speak
-        await sendHeygenText(result.aiResponse);
-      }
-    } catch (err) {
-      console.error('Failed to stop/upload recording', err);
-      // Reset state even on error
-      setRecording(false);
-      audioRecorderPlayer.removeRecordBackListener();
-    } finally {
-      setRecordLoading(false);
-    }
-  };
-
-  const closeSession = async () => {
-    try {
-      setLoading(true);
-
-      // Cleanup ongoing recording
-      if (recording) {
-        await audioRecorderPlayer.stopRecorder();
-        audioRecorderPlayer.removeRecordBackListener();
-        setRecording(false);
-      }
-
-      // Clear timers
-      if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-      if (autoRestartTimeoutRef.current) clearTimeout(autoRestartTimeoutRef.current);
-
-      await fetch(`${HEYGEN_API_URL}/streaming.stop`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sessionToken}`,
-        },
-        body: JSON.stringify({ session_id: heygenSessionId }),
-      });
-
-      setConnected(false);
-      setHeygenSessionId('');
-      setSessionToken('');
-      setWsUrl('');
-      setToken('');
-      setSpeaking(false);
-    } catch (err) {
-      console.error('Error closing session:', err);
-    } finally {
-      setLoading(false);
     }
   };
-
-  if (!connected) {
-    return (
-      <SafeAreaView style={styles.startContainer}>
-        <Text style={styles.title}>HeyGen Live Avatar</Text>
-        <TouchableOpacity
-          style={styles.startButton}
-          onPress={createSession}
-          disabled={loading}
-        >
-          <Text style={styles.startButtonText}>
-            {loading ? 'Starting...' : 'Start Session'}
-          </Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
 
   return (
-    <LiveKitRoom
-      serverUrl={wsUrl}
-      token={token}
-      connect
-      audio={false}
-      video={false}
-    >
-      <RoomView
-        onClose={closeSession}
-        speaking={speaking}
-        loading={loading}
-        // recording props
-        onStartRecording={startRecording}
-        onStopRecording={stopRecording}
-        recording={recording}
-        recordTime={recordTime}
-        recordLoading={recordLoading}
-      />
-    </LiveKitRoom>
-  );
-}
+    <View style={styles.container}>
 
-const RoomView = ({
-  onClose,
-  speaking,
-  loading,
-  onStartRecording,
-  onStopRecording,
-  recording,
-  recordTime,
-  recordLoading,
-}: {
-  onClose: () => void;
-  speaking: boolean;
-  loading: boolean;
-  onStartRecording: () => void;
-  onStopRecording: () => void;
-  recording: boolean;
-  recordTime: string;
-  recordLoading: boolean;
-}) => {
-  const tracks = useTracks([Track.Source.Camera], { onlySubscribed: true });
+      {/* Main Avatar Display */}
+      <View style={styles.avatarContainer}>
+        <Animated.View style={{ transform: [{ scale: glowAnim }] }}>
+          <LottieView
+            source={
+              appState === 'speaking' || appState === 'thinking'
+                ? avatar_talking
+                : avatar_idle
+            }
+            autoPlay
+            loop
+            style={styles.avatarLottie}
+            resizeMode="contain"
+          />
+        </Animated.View>
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <View style={styles.videoContainer}>
-          {tracks.map((track, idx) =>
-            isTrackReference(track) ? (
-              <VideoTrack
-                key={idx}
-                style={styles.videoView}
-                trackRef={track}
-                objectFit="contain"
-              />
-            ) : null,
-          )}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.closeButton, loading && styles.disabledButton]}
-          onPress={onClose}
-          disabled={loading}
-        >
-          <Text style={styles.closeButtonText}>
-            {loading ? 'Closing...' : 'Close Session'}
-          </Text>
-        </TouchableOpacity>
-
-        <View style={styles.controls}>
-          <View style={{ flex: 1, justifyContent: 'center' }}>
-            <Text style={styles.recordTimeText}>{recordTime}</Text>
-            <TouchableOpacity
-              style={[
-                styles.recordButton,
-                (recording || recordLoading || loading || speaking) &&
-                styles.disabledButton,
-              ]}
-              onPress={recording ? onStopRecording : onStartRecording}
-              disabled={recordLoading || loading || speaking}
-            >
-              <Text style={styles.recordButtonText}>
-                {recordLoading
-                  ? 'Processing...'
-                  : speaking
-                    ? 'Speaking...'
-                    : recording
-                      ? '🎤 Listening...'
-                      : 'Start Recording'}
-              </Text>
-            </TouchableOpacity>
+        {/* AI Text Display (Subtitles) */}
+        {aiText && appState === 'speaking' && (
+          <View style={styles.textContainer}>
+            <Text style={styles.aiText}>{aiText}</Text>
           </View>
+        )}
+
+        {/* Thinking Overlay (Stars/Loader) */}
+        {appState === 'thinking' && (
+          <LottieView
+            source={avatar_thinking}
+            autoPlay
+            loop
+            style={styles.loader}
+          />
+        )}
+      </View>
+
+      {/* Interaction Button */}
+      <TouchableOpacity
+        activeOpacity={0.9}
+        onPress={handlePress}
+        style={styles.touchArea}
+        disabled={appState === 'thinking'}
+      >
+        <View style={[
+          styles.micIndicator,
+          {
+            backgroundColor:
+              appState === 'listening'
+                ? '#FF4B4B'
+                : appState === 'thinking'
+                  ? '#FFA726'
+                  : appState === 'speaking'
+                    ? '#2196F3'
+                    : '#4CAF50'
+          }
+        ]}>
+          <Text style={styles.micText}>
+            {appState === 'idle' && "👋 Tap to Talk"}
+            {appState === 'listening' && "🎤 Listening..."}
+            {appState === 'thinking' && "🤔 Thinking..."}
+            {appState === 'speaking' && "🗣️ Speaking..."}
+          </Text>
         </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  startContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: theme.primary
+  },
+  warningBanner: {
+    backgroundColor: '#FF9800',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  warningText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  avatarContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    alignItems: 'center'
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a73e8',
-    marginBottom: 20,
-    textAlign: 'center',
+  avatarLottie: {
+    width: width * 1.2,
+    height: height * 0.6
   },
-  startButton: { backgroundColor: '#2196F3', padding: 16, borderRadius: 30 },
-  startButtonText: { color: '#fff', fontSize: 18, fontWeight: '600' },
-  videoContainer: { flex: 1 },
-  videoView: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  closeButton: {
+  textContainer: {
     position: 'absolute',
-    top: 50,
+    bottom: 20,
+    left: 20,
     right: 20,
-    backgroundColor: '#ff4444',
-    padding: 12,
-    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: 16,
+    borderRadius: 16,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  closeButtonText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  controls: { flexDirection: 'row', padding: 20, gap: 10 },
-  recordTimeText: {
-    marginBottom: 6,
-    fontSize: 14,
-    color: '#666',
+  aiText: {
+    color: '#333',
+    fontSize: 18,
     textAlign: 'center',
+    lineHeight: 26,
+    fontWeight: '500',
   },
-  recordButton: {
-    backgroundColor: '#9121f3ff',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    justifyContent: 'center',
-    borderRadius: 25,
-    alignItems: 'center',
-    minWidth: 150,
+  touchArea: {
+    position: 'absolute',
+    bottom: 60,
+    alignSelf: 'center',
+    width: width * 0.8,
+    alignItems: 'center'
   },
-  recordButtonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  disabledButton: { opacity: 0.5 },
+  micIndicator: {
+    paddingVertical: 18,
+    paddingHorizontal: 35,
+    borderRadius: 40,
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  micText: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center'
+  },
+  loader: {
+    width: 250,
+    height: 250,
+    position: 'absolute',
+    top: '20%'
+  }
 });
+
+export default AvatarScreen;
